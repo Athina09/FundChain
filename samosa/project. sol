@@ -1,0 +1,74 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract MilestoneEscrow {
+    address public investor;   // who provides funds
+    address payable public student;   // project owner (receiver)
+    uint public totalMilestones;
+    uint public currentMilestone;
+
+    mapping(uint => uint) public milestoneAmounts;  // milestone => amount
+    uint public totalDeposited;
+
+    enum State { AWAITING_FUNDS, FUNDED, COMPLETED, REFUNDED }
+    State public contractState;
+
+    constructor(address payable _student, uint _totalMilestones) {
+        investor =msg.sender;
+        totalMilestones = _totalMilestones;
+        student= _student;
+        currentMilestone=0;
+        contractState = State.AWAITING_FUNDS;
+    }
+
+    // Investor deposits full funds for all milestones
+    function deposit() external payable {
+        require(msg.sender == investor, "Only investor can deposit");
+        require(contractState == State.AWAITING_FUNDS, "Already funded");
+        require(msg.value > 0, "Must send some ETH");
+
+        totalDeposited = msg.value;
+        contractState = State.FUNDED;
+    }
+
+    // Define how much each milestone gets (e.g. 1 ETH, 2 ETH...)
+    function setMilestone(uint milestoneId, uint amount) external {
+        require(msg.sender == investor, "Only investor can set milestones");
+        require(contractState == State.FUNDED, "Not funded yet");
+        require(milestoneId < totalMilestones, "Invalid milestone");
+        milestoneAmounts[milestoneId] = amount;
+    }
+
+    // Investor releases funds for current milestone
+    function releaseFunds() external {
+        require(msg.sender == investor, "Only investor can release");
+        require(contractState == State.FUNDED, "Not funded");
+        require(currentMilestone < totalMilestones, "All milestones done");
+
+        uint amount = milestoneAmounts[currentMilestone];
+        require(amount > 0, "Milestone amount not set");
+
+        student.transfer(amount);
+        currentMilestone++;
+
+        // if all milestones completed, mark contract finished
+        if (currentMilestone == totalMilestones) {
+            contractState = State.COMPLETED;
+        }
+    }
+
+    // Refund remaining funds back to investor if project fails
+    function refund() external {
+        require(msg.sender == investor, "Only investor can refund");
+        require(contractState == State.FUNDED, "Not funded");
+
+        uint remaining = address(this).balance;
+        payable(investor).transfer(remaining);
+        contractState = State.REFUNDED;
+    }
+
+    // Check balance left in contract
+    function getBalance() external view returns(uint) {
+        return address(this).balance;
+    }
+}
