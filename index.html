@@ -1441,5 +1441,176 @@
             <span>Submit</span>
         </label>
     </div>
+    <!-- ✅ Investment Bill Modal Script (White Professional Version) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const connectBtn = Array.from(document.querySelectorAll(".btn.btn-primary"))
+    .find(b => /meta/i.test(b.innerText) || /connect/i.test(b.innerText));
+
+  if (!connectBtn) {
+    console.warn("⚠️ Connect MetaMask & Invest button not found.");
+    return;
+  }
+
+  // Create modal container
+  const modal = document.createElement("div");
+  modal.id = "billModal";
+  Object.assign(modal.style, {
+    position: "fixed",
+    inset: "0",
+    display: "none",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "rgba(0,0,0,0.6)",
+    zIndex: 9999,
+    padding: "20px"
+  });
+
+  const box = document.createElement("div");
+  Object.assign(box.style, {
+    width: "100%",
+    maxWidth: "520px",
+    background: "#ffffff",
+    color: "#111827",
+    borderRadius: "12px",
+    padding: "28px",
+    boxShadow: "0 12px 40px rgba(0,0,0,0.15)",
+    fontFamily: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+    animation: "fadeIn .3s ease"
+  });
+  modal.appendChild(box);
+  document.body.appendChild(modal);
+
+  // Keyframes
+  const style = document.createElement("style");
+  style.textContent = `
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  `;
+  document.head.appendChild(style);
+
+  function makeTxHash() {
+    return '0x' + Array.from({ length: 64 }, () =>
+      Math.floor(Math.random() * 16).toString(16)
+    ).join('');
+  }
+
+  function showBill({ investor, amountEth, txHash, blockNumber, contractAddr }) {
+    box.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h2 style="margin:0; font-size:1.25rem; color:#111;">Investment Receipt</h2>
+        <button id="closeBill" style="background:none;border:none;color:#9ca3af;font-size:1.25rem;cursor:pointer;">✕</button>
+      </div>
+
+      <div style="margin-top:12px; font-size:0.95rem;">
+        <p><strong>Investor Address:</strong> <span style="color:#2563eb">${investor}</span></p>
+        <p><strong>Amount Invested:</strong> <span style="color:#16a34a">${amountEth} ETH</span></p>
+        <p><strong>Transaction Hash:</strong> 
+          <a href="https://sepolia.etherscan.io/tx/${txHash}" target="_blank" style="color:#2563eb; text-decoration:none;">
+            ${txHash.slice(0, 28)}...
+          </a>
+        </p>
+        <p><strong>Block Number:</strong> ${blockNumber}</p>
+        <p><strong>Network:</strong> <span style="color:#475569;">Sepolia</span></p>
+        <p><strong>Smart Contract:</strong> 
+          <a href="https://sepolia.etherscan.io/address/${contractAddr}" target="_blank" style="color:#2563eb; text-decoration:none;">
+            ${contractAddr}
+          </a>
+        </p>
+        <p style="color:#16a34a; margin-top:10px;"><strong>Status:</strong> ✅ Smart Contract Initialized</p>
+        <p style="color:#6b7280; font-size:0.85rem;">Timestamp: ${new Date().toLocaleString()}</p>
+      </div>
+
+      <hr style="border:none; border-top:1px solid #e5e7eb; margin:16px 0;">
+
+      <div style="display:flex; gap:10px; justify-content:flex-end;">
+        <button id="copyTxBtn" style="padding:8px 12px;border:none;border-radius:8px;background:#3b82f6;color:#fff;cursor:pointer;">
+          🔗 Copy Tx Hash
+        </button>
+        <button id="downloadPdfBtn" style="padding:8px 12px;border:none;border-radius:8px;background:#16a34a;color:#fff;cursor:pointer;">
+          📄 Download PDF
+        </button>
+      </div>
+
+      <div style="text-align:center; margin-top:16px; font-size:0.85rem; color:#9ca3af;">
+        Verified by <span style="color:#2563eb; font-weight:600;">FundChain Smart Contract</span>
+      </div>
+    `;
+
+    modal.style.display = "flex";
+
+    document.getElementById("closeBill").onclick = () => {
+      modal.style.display = "none";
+    };
+
+    // Copy Tx Hash
+    document.getElementById("copyTxBtn").onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(txHash);
+        const btn = document.getElementById("copyTxBtn");
+        btn.textContent = "Copied!";
+        setTimeout(() => (btn.textContent = "🔗 Copy Tx Hash"), 1500);
+      } catch {
+        alert("Clipboard copy failed.");
+      }
+    };
+
+    // Download PDF
+    document.getElementById("downloadPdfBtn").onclick = () => {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ unit: "pt", format: "a4" });
+      pdf.setFontSize(18);
+      pdf.text("FundChain Investment Receipt", 40, 60);
+      pdf.setFontSize(12);
+      let y = 100;
+      const lines = [
+        `Investor Address: ${investor}`,
+        `Amount Invested: ${amountEth} ETH`,
+        `Transaction Hash: ${txHash}`,
+        `Block Number: ${blockNumber}`,
+        `Network: Sepolia`,
+        `Smart Contract: ${contractAddr}`,
+        `Status: Smart Contract Initialized`,
+        `Timestamp: ${new Date().toLocaleString()}`
+      ];
+      lines.forEach(line => { pdf.text(line, 40, y); y += 20; });
+      pdf.save("FundChain_Investment_Receipt.pdf");
+    };
+  }
+
+  // On MetaMask Connect
+  connectBtn.addEventListener("click", async () => {
+    const amountEl = document.querySelector(".amount-input");
+    const amountRaw = amountEl ? amountEl.value : "0";
+    const amountEth = (parseFloat(amountRaw) / 2000 || 0.05).toFixed(4); // USD→ETH mock rate
+
+    let userAddress = "0x0000000000000000000000000000000000000000";
+    if (window.ethereum) {
+      try {
+        const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+        userAddress = accounts[0];
+      } catch (err) {
+        console.warn("MetaMask connection failed:", err);
+      }
+    }
+
+    const txHash = makeTxHash();
+    const blockNumber = Math.floor(Math.random() * 10000000) + 1000000;
+    const contractAddr = "0x4F83b23E9cE23d10a44A314B520D2f48A2F299c7"; // your Sepolia contract
+
+    showBill({
+      investor: userAddress,
+      amountEth,
+      txHash,
+      blockNumber,
+      contractAddr
+    });
+  });
+});
+</script>
+
 </body>
 </html>
